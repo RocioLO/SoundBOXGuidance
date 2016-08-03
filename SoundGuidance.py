@@ -7,6 +7,7 @@ import math
 import time
 import SimpleITK
 import numpy as np
+import OSC
 #
 # SoundGuidance
 #
@@ -57,7 +58,7 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
 
     # Layout within the dummy collapsible button
     parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
-
+    
     
     #
     # Apply Button
@@ -206,11 +207,11 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
 
   def onplaySoundButtonClicked(self):
     #IP = "172.16.203.210"
-
+    self.logic.changeSendDataStatus()
     #initialization
-    c = SendOSC()
-    c.connect("localhost", 8080)
-    self.logic.activateOSC()
+    #c = SendOSC()
+    #c.connect("localhost", 8080)
+    #self.logic.activateOSC()
     
 
 #
@@ -227,6 +228,7 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
   def __init__(self):
+    self.sendDataOK = False
     self.OSC_active = False
     self.line = slicer.util.getNode('Line')
     if not self.line:
@@ -286,6 +288,7 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
     distance = math.sqrt(math.pow(pointerTipPoint[0]-needleTipPoint[0], 2) + math.pow(pointerTipPoint[1]-needleTipPoint[1], 2) + math.pow(pointerTipPoint[2]-needleTipPoint[2], 2))
     
     normalizedDistance = distance/100
+    
     if self.OSC_active:
       #print ("HOLAAA")
       c.send("/dumpOSC/0/0", 0)
@@ -293,6 +296,9 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
     self.outputDistanceLabel.setText('%.1f' % distance)
 
     self.drawLineBetweenPoints(pointerTipPoint, needleTipPoint)
+
+    if self.sendDataOK:
+      self.sendData(normalizedDistance)
 
   def setOutPutDistanceLabel(self, label):
     self.outputDistanceLabel = label
@@ -318,7 +324,18 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
   def activateOSC(self):
     self.OSC_active = True
  
-    
+  def sendData(self, distance):
+
+    client = OSC.OSCClient()
+    client.connect(("192.168.0.75",7400))
+
+    message = OSC.OSCMessage()
+    message.setAddress("/dumpOSC/0/0")
+    message.append(distance)
+
+    client.send(message)
+  def changeSendDataStatus(self):
+    self.sendDataOK = True
 
 
 class SoundGuidanceTest(ScriptedLoadableModuleTest):

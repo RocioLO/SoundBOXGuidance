@@ -1,0 +1,12 @@
+#N canvas 70 658 601 394 10;
+#X declare -lib mrpeach;
+#X obj 134 101 unpackOSC;
+#X obj 134 29 import mrpeach;
+#X obj 126 137 print;
+#X obj 188 141 prepend set;
+#X msg 180 182 /dumpOSC/Distance 1;
+#X obj 134 69 udpreceive 7400;
+#X connect 0 0 2 0;
+#X connect 0 0 3 0;
+#X connect 3 0 4 0;
+#X connect 5 0 0 0;
