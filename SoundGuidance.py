@@ -287,7 +287,9 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
 
     distance = math.sqrt(math.pow(pointerTipPoint[0]-needleTipPoint[0], 2) + math.pow(pointerTipPoint[1]-needleTipPoint[1], 2) + math.pow(pointerTipPoint[2]-needleTipPoint[2], 2))
     
-    normalizedDistance = distance/100
+    # La distancia se da en mm ----> 50mm = 5cm
+    # Voy a normalizar con un tope de 20cm
+    normalizedDistance = [(distance - 0)/200]
     
     if self.OSC_active:
       #print ("HOLAAA")
@@ -327,7 +329,7 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
   def sendData(self, distance):
 
     client = OSC.OSCClient()
-    client.connect(("192.168.0.75",7400))
+    client.connect(("192.168.0.68",7400))
 
     message = OSC.OSCMessage()
     message.setAddress("/dumpOSC/0/0")
