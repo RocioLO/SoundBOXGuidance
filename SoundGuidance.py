@@ -8,6 +8,8 @@ import time
 import SimpleITK
 import numpy as np
 import OSC
+import numpy.linalg
+#from sympy import Plane, Point, Point3D
 #
 # SoundGuidance
 #
@@ -49,7 +51,55 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
     # Instantiate and connect widgets ...
     self.defaultStyleSheet = "QLabel { color : #000000; \
                                        font: bold 14px}"
-    #
+
+     # Load models first
+    self.SoundGuidanceModuleModelsPath = slicer.modules.soundguidance.path.replace("SoundGuidance.py","") + 'Resources/Models/'
+
+    self.boxModel = slicer.util.getNode('boxModel')
+    if not self.boxModel:
+        slicer.util.loadModel(self.SoundGuidanceModuleModelsPath + 'box.stl')
+        self.boxModel = slicer.util.getNode(pattern="box")
+        self.boxModelDisplay=self.boxModel.GetModelDisplayNode()
+        self.boxModelDisplay.SetColor([0.098,0.5,0.42])
+        self.boxModelDisplay.SetOpacity(0.3)
+
+    self.aroModel = slicer.util.getNode('aroModel')
+    if not self.aroModel:
+        slicer.util.loadModel(self.SoundGuidanceModuleModelsPath + 'aro.stl')
+        self.aroModel = slicer.util.getNode(pattern="aro")
+        self.aroModelDisplay=self.aroModel.GetModelDisplayNode()
+        self.aroModelDisplay.SetColor([0.063,0.14,0.5])
+    
+    #We create models
+    self.needleModel = slicer.util.getNode('NeedleModel')
+    if not self.needleModel:
+        slicer.util.loadModel(self.SoundGuidanceModuleModelsPath + 'NeedleModel.stl')
+        self.needleModel = slicer.util.getNode(pattern="NeedleModel")
+        self.needleModelDisplay=self.needleModel.GetModelDisplayNode()
+        self.needleModelDisplay.SetColor([0,1,1])
+
+    self.pointerModel = slicer.util.getNode('PointerModel')
+    if not self.pointerModel:
+        slicer.util.loadModel(self.SoundGuidanceModuleModelsPath + 'PointerModel.stl')
+        self.pointerModel = slicer.util.getNode(pattern="PointerModel")
+        self.pointerModelDisplay=self.pointerModel.GetModelDisplayNode()
+        self.pointerModelDisplay.SetColor([0,0,0])
+
+    self.targetFiducial = slicer.util.getNode('targetFiducial')
+    if not self.targetFiducial:
+      slicer.util.loadMarkupsFiducialList(self.SoundGuidanceModuleModelsPath + 'Target.fcsv')
+      self.targetFiducial = slicer.util.getNode(pattern="Target")
+
+    self.surfaceFiducial = slicer.util.getNode('surfaceFiducial')
+    if not self.surfaceFiducial:
+      slicer.util.loadMarkupsFiducialList(self.SoundGuidanceModuleModelsPath + 'surfacePoint.fcsv')
+      self.surfaceFiducial = slicer.util.getNode(pattern="surfacePoint")
+
+    self.xAxisFiducial = slicer.util.getNode('xAxisFiducial')
+    if not self.xAxisFiducial:
+      slicer.util.loadMarkupsFiducialList(self.SoundGuidanceModuleModelsPath + 'xAxisFiducial.fcsv')
+      self.xAxisFiducial= slicer.util.getNode(pattern="xAxisFiducial")
+    # Parameters Area
     # Parameters Area
     #
     parametersCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -104,14 +154,25 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
     if not self.trackerToReference:
         print('ERROR: TrackerToReference transform node was not found')
 
-
-    self.pointerTipToPointer = slicer.util.getNode('PointerTipToPointer')
-    if not self.pointerTipToPointer:
-        print('ERROR: pointerTipToPointer transform node was not found')
+    # Load models first
+    self.SoundGuidanceModuleDataPath = slicer.modules.soundguidance.path.replace("SoundGuidance.py","") + 'Resources/Data/'
 
     self.needleTipToNeedle = slicer.util.getNode('NeedleTipToNeedle')
     if not self.needleTipToNeedle:
-        print('ERROR: needleTipToNeedle transform node was not found')
+      slicer.util.loadTransform(self.SoundGuidanceModuleDataPath + 'NeedleTipToNeedle.h5')
+      self.needleTipToNeedle = slicer.util.getNode(pattern="NeedleTipToNeedle")
+
+    self.pointerTipToPointer = slicer.util.getNode('PointerTipToPointer')
+    if not self.pointerTipToPointer:
+        slicer.util.loadTransform(self.SoundGuidanceModuleDataPath + 'PointerTipToPointer.h5')
+        self.pointerTipToPointer = slicer.util.getNode(pattern="PointerTipToPointer")
+      
+    self.boxToReference = slicer.util.getNode('BoxToReference')
+    if not self.boxToReference:
+      slicer.util.loadTransform(self.SoundGuidanceModuleDataPath + 'BoxToReference.h5')
+      self.boxToReference = slicer.util.getNode(pattern="BoxToReference")
+    
+        
     
     # Tranformations to fix models orientation
     self.needleModelToNeedleTip = slicer.util.getNode('needleModelToNeedleTip')
@@ -158,23 +219,8 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
     self.applyButton.connect('clicked(bool)', self.onCalculateDistanceButton)
     self.playSoundButton.connect('clicked(bool)', self.onplaySoundButtonClicked)
 
-    self.SoundGuidanceModuleDataPath = slicer.modules.soundguidance.path.replace("SoundGuidance.py","") + 'Resources/Models/'
-
-
-    #We create models
-    self.needleModel = slicer.util.getNode('NeedleModel')
-    if not self.needleModel:
-        slicer.util.loadModel(self.SoundGuidanceModuleDataPath + 'NeedleModel.stl')
-        self.needleModel = slicer.util.getNode(pattern="NeedleModel")
-        self.needleModelDisplay=self.needleModel.GetModelDisplayNode()
-        self.needleModelDisplay.SetColor([0,1,1])
-
-    self.pointerModel = slicer.util.getNode('PointerModel')
-    if not self.pointerModel:
-        slicer.util.loadModel(self.SoundGuidanceModuleDataPath + 'PointerModel.stl')
-        self.pointerModel = slicer.util.getNode(pattern="PointerModel")
-        self.pointerModelDisplay=self.pointerModel.GetModelDisplayNode()
-        self.pointerModelDisplay.SetColor([0,0,0])
+    
+    
 
     
     #Build Transforms tree
@@ -189,6 +235,15 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
     self.needleModelToNeedleTip.SetAndObserveTransformNodeID(self.needleTipToNeedle.GetID())
     self.needleTipToNeedle.SetAndObserveTransformNodeID(self.needleToTracker.GetID())
 
+    #Box and aro
+    self.boxModel.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    self.aroModel.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    self.targetFiducial.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    self.surfaceFiducial.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    self.xAxisFiducial.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    self.boxToReference.SetAndObserveTransformNodeID(self.referenceToTracker.GetID())  
+
+
     # Add vertical spacer
     self.layout.addStretch(1)
 
@@ -200,9 +255,12 @@ class SoundGuidanceWidget(ScriptedLoadableModuleWidget):
   
   def onCalculateDistanceButton(self):
     
+    self.logic.transferValues(self.needleTipToNeedle, self.pointerTipToPointer, self.needleToTracker, self.targetFiducial, self.surfaceFiducial, self.boxToReference, self.xAxisFiducial)
+
     self.logic.setOutPutDistanceLabel(self.calculateDistanceLabel)
     
-    self.logic.transferValues(self.needleTipToNeedle, self.pointerTipToPointer, self.needleToTracker)
+    
+    self.logic.plotLineZaxis()
     self.logic.addCalculateDistanceObserver()
 
   def onplaySoundButtonClicked(self):
@@ -242,12 +300,15 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
       slicer.mrmlScene.AddNode(modelDisplay)      
       self.line.SetAndObserveDisplayNodeID(modelDisplay.GetID())      
       slicer.mrmlScene.AddNode(self.line)
-  def transferValues(self, needleTTNeedle, pointerTTPointer, needleTTracker):
+  def transferValues(self, needleTTNeedle, pointerTTPointer, needleTTracker, tFiducial,sFiducial, btr, xaf):
 
     self.needleTipToNeedle = needleTTNeedle
     self.pointerTipToPointer = pointerTTPointer
     self.needleToTracker = needleTTracker
-
+    self.targetFiducial = tFiducial
+    self.surfaceFiducial = sFiducial
+    self.boxToReference = btr
+    self.xAxisFiducial = xaf
 
   def addCalculateDistanceObserver(self):
     print("[TEST] addCalculateDistanceObserver")
@@ -269,23 +330,16 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
   def calculateDistance(self):
 
     pointerTipPoint = [0.0,0.0,0.0]
-    needleTipPoint = [0.0, 0.0, 0.0]
-  
-    v = vtk.vtkMatrix4x4()
-    self.needleTipToNeedle.GetMatrixTransformToWorld(v)
-    needleTipPoint[0] = v.GetElement(0, 3)
-    needleTipPoint[1] = v.GetElement(1, 3)
-    needleTipPoint[2] = v.GetElement(2, 3)
-
+    
      
     m = vtk.vtkMatrix4x4()
     self.pointerTipToPointer.GetMatrixTransformToWorld(m)
     pointerTipPoint[0] = m.GetElement(0, 3)
     pointerTipPoint[1] = m.GetElement(1, 3)
     pointerTipPoint[2] = m.GetElement(2, 3)
-        # print(targetPoint)
+    
 
-    distance = math.sqrt(math.pow(pointerTipPoint[0]-needleTipPoint[0], 2) + math.pow(pointerTipPoint[1]-needleTipPoint[1], 2) + math.pow(pointerTipPoint[2]-needleTipPoint[2], 2))
+    distance = math.sqrt(math.pow(pointerTipPoint[0]-self.pos[0], 2) + math.pow(pointerTipPoint[1]-self.pos[1], 2) + math.pow(pointerTipPoint[2]-self.pos[2], 2))
     
     # La distancia se da en mm ----> 50mm = 5cm
     # Voy a normalizar con un tope de 20cm
@@ -296,8 +350,9 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
       c.send("/dumpOSC/0/0", 0)
 
     self.outputDistanceLabel.setText('%.1f' % distance)
-
-    self.drawLineBetweenPoints(pointerTipPoint, needleTipPoint)
+    
+    self.pos = [self.pos[i] for i in (0,1,2)]
+    self.drawLineBetweenPoints(pointerTipPoint, self.pos)
 
     if self.sendDataOK:
       self.sendData(normalizedDistance)
@@ -329,7 +384,7 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
   def sendData(self, distance):
 
     client = OSC.OSCClient()
-    client.connect(("192.168.0.68",7400))
+    client.connect(("192.168.0.70",7400))
 
     message = OSC.OSCMessage()
     message.setAddress("/dumpOSC/0/0")
@@ -339,6 +394,166 @@ class SoundGuidanceLogic(ScriptedLoadableModuleLogic):
   def changeSendDataStatus(self):
     self.sendDataOK = True
 
+  def plotLineZaxis(self):
+
+    # Create a vtkPoints object and store the points in it
+    self.pos = [0.0, 0.0, 0.0, 0.0]  
+    self.targetFiducial.GetNthFiducialWorldCoordinates(0, self.pos)
+    targetP = [self.pos[i] for i in (0,1,2)]
+
+    self.surfPoint = [0.0, 0.0, 0.0, 0.0]  
+    self.surfaceFiducial.GetNthFiducialWorldCoordinates(0, self.surfPoint)
+    surfaceP = [self.surfPoint[i] for i in (0,1,2)]
+
+    self.zVector = np.subtract(targetP,surfaceP)
+
+    points = vtk.vtkPoints()
+    points.InsertNextPoint(targetP)
+
+    points.InsertNextPoint(surfaceP)
+
+    # Create line
+    line = vtk.vtkLine()
+    line.GetPointIds().SetId(0,0)
+    line.GetPointIds().SetId(1,1)
+    lineCellArray = vtk.vtkCellArray()
+    lineCellArray.InsertNextCell(line)
+
+    self.lineNode = slicer.vtkMRMLModelNode()
+    self.lineNode.SetName('LineZ')
+    linePolyData = vtk.vtkPolyData()
+    self.lineNode.SetAndObservePolyData(linePolyData)
+    modelDisplay = slicer.vtkMRMLModelDisplayNode()
+    modelDisplay.SetSliceIntersectionVisibility(True)
+    modelDisplay.SetColor(1,1,1)
+    slicer.mrmlScene.AddNode(modelDisplay)
+
+    self.lineNode.SetAndObserveDisplayNodeID(modelDisplay.GetID())
+    slicer.mrmlScene.AddNode(self.lineNode)
+
+    self.lineNode.GetPolyData().SetPoints(points)
+    self.lineNode.GetPolyData().SetLines(lineCellArray)
+
+    #self.lineNode.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    self.drawPlane(surfaceP, self.zVector)
+    self.definePlaneAxis(surfaceP, self.zVector)
+
+  def drawPlane(self, m, V_norm):
+    scene = slicer.mrmlScene
+
+    #create a plane to cut,here it cuts in the XZ direction (xz normal=(1,0,0);XY =(0,0,1),YZ =(0,1,0)
+    planex=vtk.vtkPlane()
+    planex.SetOrigin(m[0],m[1],m[2])
+    planex.SetNormal(V_norm[0],V_norm[1],V_norm[2])
+
+    renderer = slicer.app.layoutManager().threeDWidget(0).threeDView().renderWindow().GetRenderers().GetFirstRenderer()
+    viewSize = renderer.ComputeVisiblePropBounds()
+    #viewSize = (-50.0, 50.0, -50.0, 50.0, -50.0, 50.0)
+
+
+    planexSample = vtk.vtkSampleFunction()
+    planexSample.SetImplicitFunction(planex)
+    planexSample.SetModelBounds(viewSize)
+    #planexSample.SetSampleDimensions(200,200,200)
+    planexSample.ComputeNormalsOff()
+    plane1 = vtk.vtkContourFilter()
+    plane1.SetInputConnection(planexSample.GetOutputPort())
+
+
+    # Create model Plane A node
+    planeA = slicer.vtkMRMLModelNode()
+    planeA.SetScene(scene)
+    planeA.SetName("X-Y Plane")
+    planeA.SetAndObservePolyData(plane1.GetOutput())
+
+    # Create display model Plane A node
+    planeAModelDisplay = slicer.vtkMRMLModelDisplayNode()
+    planeAModelDisplay.SetColor(0.145,0.77,0.596)
+    
+    planeAModelDisplay.BackfaceCullingOff()
+    planeAModelDisplay.SetScene(scene)
+    scene.AddNode(planeAModelDisplay)
+    planeA.SetAndObserveDisplayNodeID(planeAModelDisplay.GetID())
+
+    #Add to scene
+    planeAModelDisplay.SetInputPolyDataConnection(plane1.GetOutputPort())
+    scene.AddNode(planeA)
+
+    # adjust center of 3d view to plane
+    layoutManager = slicer.app.layoutManager()
+    threeDWidget = layoutManager.threeDWidget(0)
+    threeDView = threeDWidget.threeDView()
+    threeDView.resetFocalPoint()
+
+  def definePlaneAxis(self, oPoint, zV):
+    
+    xP = [0.0, 0.0, 0.0, 0.0]  
+    self.xAxisFiducial.GetNthFiducialWorldCoordinates(0, xP)
+   # a = Plane(Point3D(1,4,6), normal_vector=(2,4,6))
+    
+    xAxisPoint = [xP[i] for i in (0,1,2)]
+ 
+    self.zVector = zV
+    self.xVector = np.subtract(xAxisPoint,oPoint)
+
+    self.yVector = np.cross(self.zVector, self.xVector)
+
+    #Para hallar la matriz de transformacion es necesario tener vectores unitarios!
+
+    xUnitario = self.xVector/numpy.linalg.norm(self.xVector)
+    yUnitario = self.yVector/numpy.linalg.norm(self.yVector)
+    zUnitario = self.zVector/numpy.linalg.norm(self.zVector)
+
+    print type(self.xVector)
+    print ('Vector x:')
+    print (self.xVector)
+    print (self.xVector[0])
+    print ('Vector y:')
+    print (self.yVector)
+    print ('Vector z:')
+    print (self.zVector)
+    print oPoint
+
+    #We create the transformation matrix so that change the coordinates system:
+    R = vtk.vtkMatrix3x3()
+    R.SetElement( 0, 0, xUnitario[0]  ) # Row 1
+    R.SetElement( 0, 1, xUnitario[1]  )
+    R.SetElement( 0, 2, xUnitario[2]  )
+    R.SetElement( 1, 0, yUnitario[0] )  # Row 2
+    R.SetElement( 1, 1, yUnitario[1] )
+    R.SetElement( 1, 2, yUnitario[2] )
+    R.SetElement( 2, 0, zUnitario[0] )  # Row 3
+    R.SetElement( 2, 1, zUnitario[1] )
+    R.SetElement( 2, 2, zUnitario[2] )
+    
+    resultPoint = [0.0, 0.0, 0.0]
+    R.MultiplyPoint(oPoint, resultPoint)
+   
+    matrixTransfBOX = vtk.vtkMatrix4x4()
+    matrixTransfBOX.SetElement( 0, 0, xUnitario[0] ) # Row 1
+    matrixTransfBOX.SetElement( 0, 1, xUnitario[1] )
+    matrixTransfBOX.SetElement( 0, 2, xUnitario[2] )
+    matrixTransfBOX.SetElement( 0, 3, -resultPoint[0] )      
+    matrixTransfBOX.SetElement( 1, 0, yUnitario[0] )  # Row 2
+    matrixTransfBOX.SetElement( 1, 1, yUnitario[1] )
+    matrixTransfBOX.SetElement( 1, 2, yUnitario[2] )
+    matrixTransfBOX.SetElement( 1, 3, -resultPoint[1] )       
+    matrixTransfBOX.SetElement( 2, 0, zUnitario[0] )  # Row 3
+    matrixTransfBOX.SetElement( 2, 1, zUnitario[1] )
+    matrixTransfBOX.SetElement( 2, 2, zUnitario[2] )
+    matrixTransfBOX.SetElement( 2, 3, -resultPoint[2] )
+    matrixTransfBOX.SetElement( 3, 0, 0 )  # Row 4
+    matrixTransfBOX.SetElement( 3, 1, 0)
+    matrixTransfBOX.SetElement( 3, 2, 0 )
+    matrixTransfBOX.SetElement( 3, 3, 1 )
+      
+    print (matrixTransfBOX)
+    #self.planeA.SetAndObserveTransformNodeID(self.boxToReference.GetID())
+    oPoint = oPoint + [1.0]
+    nuevoOrigen = [0.0, 0.0, 0.0 , 0.0]
+    matrixTransfBOX.MultiplyPoint(oPoint, nuevoOrigen)
+
+    print nuevoOrigen
 
 class SoundGuidanceTest(ScriptedLoadableModuleTest):
   """
